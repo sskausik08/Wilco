@@ -23,7 +23,9 @@ import org.batfish.datamodel.Topology;
 import org.batfish.datamodel.answers.AnswerElement;
 import org.batfish.datamodel.answers.ConvertConfigurationAnswerElement;
 import org.batfish.datamodel.answers.DataPlaneAnswerElement;
+import org.batfish.datamodel.answers.InitInfo;
 import org.batfish.datamodel.answers.InitInfoAnswerElement;
+import org.batfish.datamodel.answers.InitInfoComponent;
 import org.batfish.datamodel.answers.ParseEnvironmentBgpTablesAnswerElement;
 import org.batfish.datamodel.answers.ParseEnvironmentRoutingTablesAnswerElement;
 import org.batfish.datamodel.answers.ParseVendorConfigurationAnswerElement;
@@ -89,9 +91,8 @@ public interface IBatfish extends IPluginConsumer {
 
   InitInfoAnswerElement initInfo(boolean summary, boolean verboseError);
 
-  InitInfoAnswerElement initInfoBgpAdvertisements(boolean summary, boolean verboseError);
-
-  InitInfoAnswerElement initInfoRoutes(boolean summary, boolean verboseError);
+  InitInfo initInfoExtraComponent(
+      boolean summary, boolean verboseError, InitInfoComponent initInfoExtraComponent);
 
   void initRemoteBgpNeighbors(
       Map<String, Configuration> configurations, Map<Ip, Set<String>> ipOwners);
@@ -117,6 +118,8 @@ public interface IBatfish extends IPluginConsumer {
   ParseEnvironmentBgpTablesAnswerElement loadParseEnvironmentBgpTablesAnswerElement();
 
   ParseEnvironmentRoutingTablesAnswerElement loadParseEnvironmentRoutingTablesAnswerElement();
+
+  ParseVendorConfigurationAnswerElement loadParseIptablesConfigurationAnswerElement();
 
   ParseVendorConfigurationAnswerElement loadParseVendorConfigurationAnswerElement();
 
