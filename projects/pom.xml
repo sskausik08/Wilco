@@ -99,7 +99,7 @@
           <configuration>
             <configLocation>checkstyle.xml</configLocation>
             <consoleOutput>true</consoleOutput>
-            <failOnViolation>true</failOnViolation>
+            <failOnViolation>false</failOnViolation>
             <includeResources>false</includeResources>
             <includeTestSourceDirectory>true</includeTestSourceDirectory>
             <violationSeverity>warning</violationSeverity>

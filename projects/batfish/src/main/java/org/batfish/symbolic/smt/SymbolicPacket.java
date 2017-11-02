@@ -4,6 +4,7 @@ import com.microsoft.z3.ArithExpr;
 import com.microsoft.z3.BitVecExpr;
 import com.microsoft.z3.BoolExpr;
 import com.microsoft.z3.Context;
+import org.batfish.datamodel.Ip;
 
 /**
  * A symbolic data plane packet. Includes the source and destination Ip address, source and
@@ -15,9 +16,9 @@ class SymbolicPacket {
 
   private Context _ctx;
 
-  private BitVecExpr _dstIp;
+  private Ip _dstIp;
 
-  private BitVecExpr _srcIp;
+  private Ip _srcIp;
 
   private ArithExpr _dstPort;
 
@@ -47,8 +48,8 @@ class SymbolicPacket {
 
   SymbolicPacket(Context ctx, int id, String sliceName) {
     _ctx = ctx;
-    _dstIp = ctx.mkBVConst(id + "_" + sliceName + "dst-ip", 32);
-    _srcIp = ctx.mkBVConst(id + "_" + sliceName + "src-ip", 32);
+    //_dstIp = ctx.mkBVConst(id + "_" + sliceName + "dst-ip", 32);
+    //_srcIp = ctx.mkBVConst(id + "_" + sliceName + "src-ip", 32);
     _dstPort = ctx.mkIntConst(id + "_" + sliceName + "dst-port");
     _srcPort = ctx.mkIntConst(id + "_" + sliceName + "src-port");
     _icmpCode = ctx.mkIntConst(id + "_" + sliceName + "icmp-code");
@@ -64,10 +65,29 @@ class SymbolicPacket {
     _ipProtocol = ctx.mkIntConst(id + "_" + sliceName + "ip-protocol");
   }
 
+  SymbolicPacket(Context ctx, Ip srcIp, Ip dstIp) {
+    _ctx = ctx;
+    _dstIp = dstIp;
+    _srcIp = srcIp;
+    _dstPort = ctx.mkInt(32);
+    _srcPort = ctx.mkInt(32);
+    _icmpCode = ctx.mkInt(0);
+    _icmpType = ctx.mkInt(0);
+    _tcpAck = ctx.mkTrue();
+    _tcpCwr = ctx.mkTrue();
+    _tcpEce = ctx.mkTrue();
+    _tcpFin = ctx.mkTrue();
+    _tcpPsh = ctx.mkTrue();
+    _tcpRst = ctx.mkTrue();
+    _tcpSyn = ctx.mkTrue();
+    _tcpUrg = ctx.mkTrue();
+    _ipProtocol = ctx.mkInt(0);
+  }
+
   BoolExpr mkEqual(SymbolicPacket other) {
     return _ctx.mkAnd(
-        _ctx.mkEq(this.getDstIp(), other.getDstIp()),
-        _ctx.mkEq(this.getSrcIp(), other.getSrcIp()),
+        // _ctx.mkEq(this.getDstIp(), other.getDstIp()),
+        // _ctx.mkEq(this.getSrcIp(), other.getSrcIp()),
         _ctx.mkEq(this.getDstPort(), other.getDstPort()),
         _ctx.mkEq(this.getSrcPort(), other.getSrcPort()),
         _ctx.mkEq(this.getIpProtocol(), other.getIpProtocol()),
@@ -83,11 +103,11 @@ class SymbolicPacket {
         _ctx.mkEq(this.getTcpUrg(), other.getTcpUrg()));
   }
 
-  BitVecExpr getDstIp() {
+  Ip getDstIp() {
     return _dstIp;
   }
 
-  BitVecExpr getSrcIp() {
+  Ip getSrcIp() {
     return _srcIp;
   }
 

@@ -1,0 +1,2 @@
+init-testrig test_rigs/smt-examples/OSPF1
+get smt-reachability dstIps=["70.70.70.70"]

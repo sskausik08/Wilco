@@ -55,7 +55,7 @@ import org.batfish.symbolic.utils.Tuple;
  */
 public class Encoder {
 
-  static final Boolean ENABLE_DEBUGGING = false;
+  static final Boolean ENABLE_DEBUGGING = true;
   static final String MAIN_SLICE_NAME = "SLICE-MAIN_";
   private static final boolean ENABLE_UNSAT_CORE = false;
   private static final Boolean ENABLE_BENCHMARKING = false;

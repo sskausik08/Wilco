@@ -6,6 +6,9 @@ import com.microsoft.z3.BoolExpr;
 import com.microsoft.z3.Context;
 import com.microsoft.z3.Expr;
 import com.microsoft.z3.Solver;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -119,10 +122,11 @@ class EncoderSlice {
     _optimizations = new Optimizations(this);
     _logicalGraph = new LogicalGraph(graph);
     _symbolicDecisions = new SymbolicDecisions();
-    _symbolicPacket = new SymbolicPacket(enc.getCtx(), enc.getId(), _sliceName);
+    _symbolicPacket = new SymbolicPacket(enc.getCtx(), new Ip("70.70.70.70"), new Ip("10.0.0.1"));
+    System.out.println("LOG: I reached here");
 
-    enc.getAllVariables().put(_symbolicPacket.getDstIp().toString(), _symbolicPacket.getDstIp());
-    enc.getAllVariables().put(_symbolicPacket.getSrcIp().toString(), _symbolicPacket.getSrcIp());
+    // enc.getAllVariables().put(_symbolicPacket.getDstIp().toString(), _symbolicPacket.getDstIp());
+    // enc.getAllVariables().put(_symbolicPacket.getSrcIp().toString(), _symbolicPacket.getSrcIp());
     enc.getAllVariables()
         .put(_symbolicPacket.getDstPort().toString(), _symbolicPacket.getDstPort());
     enc.getAllVariables()
@@ -450,23 +454,24 @@ class EncoderSlice {
    * Ip address, given the prefix length variable.
    */
   BoolExpr isRelevantFor(ArithExpr prefixLen, PrefixRange range) {
-    Prefix p = range.getPrefix();
-    SubRange r = range.getLengthRange();
-    long pfx = p.getNetworkAddress().asLong();
-    int len = p.getPrefixLength();
-    int lower = r.getStart();
-    int upper = r.getEnd();
-    // well formed prefix
-    assert (p.getPrefixLength() < lower && lower <= upper);
-    BoolExpr lowerBitsMatch = firstBitsEqual(_symbolicPacket.getDstIp(), pfx, len);
-    if (lower == upper) {
-      BoolExpr equalLen = mkEq(prefixLen, mkInt(lower));
-      return mkAnd(equalLen, lowerBitsMatch);
-    } else {
-      BoolExpr lengthLowerBound = mkGe(prefixLen, mkInt(lower));
-      BoolExpr lengthUpperBound = mkLe(prefixLen, mkInt(upper));
-      return mkAnd(lengthLowerBound, lengthUpperBound, lowerBitsMatch);
-    }
+    return mkTrue();
+    // Prefix p = range.getPrefix();
+    // SubRange r = range.getLengthRange();
+    // long pfx = p.getNetworkAddress().asLong();
+    // int len = p.getPrefixLength();
+    // int lower = r.getStart();
+    // int upper = r.getEnd();
+    // // well formed prefix
+    // assert (p.getPrefixLength() < lower && lower <= upper);
+    // BoolExpr lowerBitsMatch = firstBitsEqual(_symbolicPacket.getDstIp(), pfx, len);
+    // if (lower == upper) {
+    //   BoolExpr equalLen = mkEq(prefixLen, mkInt(lower));
+    //   return mkAnd(equalLen, lowerBitsMatch);
+    // } else {
+    //   BoolExpr lengthLowerBound = mkGe(prefixLen, mkInt(lower));
+    //   BoolExpr lengthUpperBound = mkLe(prefixLen, mkInt(upper));
+    //   return mkAnd(lengthLowerBound, lengthUpperBound, lowerBitsMatch);
+    // }
   }
 
   private BoolExpr firstBitsEqual(BitVecExpr x, long y, int n) {
@@ -486,6 +491,13 @@ class EncoderSlice {
   BoolExpr isRelevantFor(Prefix p, BitVecExpr be) {
     long pfx = p.getNetworkAddress().asLong();
     return firstBitsEqual(be, pfx, p.getPrefixLength());
+  }
+  
+  /*
+   * Check if the packet destination Ip address is contained inside prefix
+   */  
+  BoolExpr isRelevantFor(Prefix p, Ip dstIP) {
+    return mkBool(p.contains(dstIP));
   }
 
   @Nullable SymbolicRoute getBestNeighborPerProtocol(String router, Protocol proto) {
@@ -1651,12 +1663,12 @@ class EncoderSlice {
           BoolExpr connectedWillSend;
           if (other == null || getGraph().isHost(ge.getPeer())) {
             Ip ip = ge.getStart().getPrefix().getAddress();
-            BitVecExpr val = getCtx().mkBV(ip.asLong(), 32);
-            connectedWillSend = mkNot(mkEq(_symbolicPacket.getDstIp(), val));
+            // BitVecExpr val = getCtx().mkBV(ip.asLong(), 32);
+            connectedWillSend = mkNot(mkBool(_symbolicPacket.getDstIp().asLong() == ip.asLong()));
           } else {
             Ip ip = other.getStart().getPrefix().getAddress();
-            BitVecExpr val = getCtx().mkBV(ip.asLong(), 32);
-            connectedWillSend = mkEq(_symbolicPacket.getDstIp(), val);
+            // BitVecExpr val = getCtx().mkBV(ip.asLong(), 32);
+            connectedWillSend = mkBool(_symbolicPacket.getDstIp().asLong() == ip.asLong());
           }
           BoolExpr canSend = (proto.isConnected() ? connectedWillSend : mkTrue());
 
@@ -1815,135 +1827,136 @@ class EncoderSlice {
       return mkTrue();
     }
 
-    BoolExpr acc = mkFalse();
+    return mkTrue();
+    // BoolExpr acc = mkFalse();
 
-    List<IpAccessListLine> lines = new ArrayList<>(acl.getLines());
-    Collections.reverse(lines);
+    // List<IpAccessListLine> lines = new ArrayList<>(acl.getLines());
+    // Collections.reverse(lines);
 
-    for (IpAccessListLine l : lines) {
-      BoolExpr local = null;
+    // for (IpAccessListLine l : lines) {
+    //   BoolExpr local = null;
 
-      if (l.getDstIps() != null) {
-        BoolExpr val = computeWildcardMatch(l.getDstIps(), _symbolicPacket.getDstIp());
-        val = l.getDstIps().isEmpty() ? mkTrue() : val;
-        local = val;
-      }
+    //   if (l.getDstIps() != null) {
+    //     BoolExpr val = computeWildcardMatch(l.getDstIps(), _symbolicPacket.getDstIp());
+    //     val = l.getDstIps().isEmpty() ? mkTrue() : val;
+    //     local = val;
+    //   }
 
-      if (l.getSrcIps() != null) {
-        BoolExpr val = computeWildcardMatch(l.getSrcIps(), _symbolicPacket.getSrcIp());
-        val = l.getDstIps().isEmpty() ? mkTrue() : val;
-        local = (local == null ? val : mkAnd(local, val));
-      }
+    //   if (l.getSrcIps() != null) {
+    //     BoolExpr val = computeWildcardMatch(l.getSrcIps(), _symbolicPacket.getSrcIp());
+    //     val = l.getDstIps().isEmpty() ? mkTrue() : val;
+    //     local = (local == null ? val : mkAnd(local, val));
+    //   }
 
-      if (l.getDscps() != null && !l.getDscps().isEmpty()) {
-        throw new BatfishException("detected dscps");
-      }
+    //   if (l.getDscps() != null && !l.getDscps().isEmpty()) {
+    //     throw new BatfishException("detected dscps");
+    //   }
 
-      if (l.getDstPorts() != null) {
-        BoolExpr val = computeValidRange(l.getDstPorts(), _symbolicPacket.getDstPort());
-        val = l.getDstPorts().isEmpty() ? mkTrue() : val;
-        local = (local == null ? val : mkAnd(local, val));
-      }
+    //   if (l.getDstPorts() != null) {
+    //     BoolExpr val = computeValidRange(l.getDstPorts(), _symbolicPacket.getDstPort());
+    //     val = l.getDstPorts().isEmpty() ? mkTrue() : val;
+    //     local = (local == null ? val : mkAnd(local, val));
+    //   }
 
-      if (l.getSrcPorts() != null) {
-        BoolExpr val = computeValidRange(l.getSrcPorts(), _symbolicPacket.getSrcPort());
-        val = l.getSrcPorts().isEmpty() ? mkTrue() : val;
-        local = (local == null ? val : mkAnd(local, val));
-      }
+    //   if (l.getSrcPorts() != null) {
+    //     BoolExpr val = computeValidRange(l.getSrcPorts(), _symbolicPacket.getSrcPort());
+    //     val = l.getSrcPorts().isEmpty() ? mkTrue() : val;
+    //     local = (local == null ? val : mkAnd(local, val));
+    //   }
 
-      if (l.getEcns() != null && !l.getEcns().isEmpty()) {
-        throw new BatfishException("detected ecns");
-      }
+    //   if (l.getEcns() != null && !l.getEcns().isEmpty()) {
+    //     throw new BatfishException("detected ecns");
+    //   }
 
-      if (l.getTcpFlags() != null) {
-        BoolExpr val = computeTcpFlags(l.getTcpFlags());
-        val = l.getTcpFlags().isEmpty() ? mkTrue() : val;
-        local = (local == null ? val : mkAnd(local, val));
-      }
+    //   if (l.getTcpFlags() != null) {
+    //     BoolExpr val = computeTcpFlags(l.getTcpFlags());
+    //     val = l.getTcpFlags().isEmpty() ? mkTrue() : val;
+    //     local = (local == null ? val : mkAnd(local, val));
+    //   }
 
-      if (l.getFragmentOffsets() != null && !l.getFragmentOffsets().isEmpty()) {
-        throw new BatfishException("detected fragment offsets");
-      }
+    //   if (l.getFragmentOffsets() != null && !l.getFragmentOffsets().isEmpty()) {
+    //     throw new BatfishException("detected fragment offsets");
+    //   }
 
-      if (l.getIcmpCodes() != null) {
-        BoolExpr val = computeValidRange(l.getIcmpCodes(), _symbolicPacket.getIcmpCode());
-        val = l.getIcmpCodes().isEmpty() ? mkTrue() : val;
-        local = (local == null ? val : mkAnd(local, val));
-      }
+    //   if (l.getIcmpCodes() != null) {
+    //     BoolExpr val = computeValidRange(l.getIcmpCodes(), _symbolicPacket.getIcmpCode());
+    //     val = l.getIcmpCodes().isEmpty() ? mkTrue() : val;
+    //     local = (local == null ? val : mkAnd(local, val));
+    //   }
 
-      if (l.getIcmpTypes() != null) {
-        BoolExpr val = computeValidRange(l.getIcmpTypes(), _symbolicPacket.getIcmpType());
-        val = l.getIcmpTypes().isEmpty() ? mkTrue() : val;
-        local = (local == null ? val : mkAnd(local, val));
-      }
+    //   if (l.getIcmpTypes() != null) {
+    //     BoolExpr val = computeValidRange(l.getIcmpTypes(), _symbolicPacket.getIcmpType());
+    //     val = l.getIcmpTypes().isEmpty() ? mkTrue() : val;
+    //     local = (local == null ? val : mkAnd(local, val));
+    //   }
 
-      if (l.getStates() != null && !l.getStates().isEmpty()) {
-        throw new BatfishException("detected states");
-      }
+    //   if (l.getStates() != null && !l.getStates().isEmpty()) {
+    //     throw new BatfishException("detected states");
+    //   }
 
-      if (l.getIpProtocols() != null) {
-        BoolExpr val = computeIpProtocols(l.getIpProtocols());
-        val = l.getIpProtocols().isEmpty() ? mkTrue() : val;
-        local = (local == null ? val : mkAnd(local, val));
-      }
+    //   if (l.getIpProtocols() != null) {
+    //     BoolExpr val = computeIpProtocols(l.getIpProtocols());
+    //     val = l.getIpProtocols().isEmpty() ? mkTrue() : val;
+    //     local = (local == null ? val : mkAnd(local, val));
+    //   }
 
-      if (l.getNotDscps() != null && !l.getNotDscps().isEmpty()) {
-        throw new BatfishException("detected NOT dscps");
-      }
+    //   if (l.getNotDscps() != null && !l.getNotDscps().isEmpty()) {
+    //     throw new BatfishException("detected NOT dscps");
+    //   }
 
-      if (l.getNotDstIps() != null && !l.getNotDstIps().isEmpty()) {
-        throw new BatfishException("detected NOT dst ip");
-      }
+    //   if (l.getNotDstIps() != null && !l.getNotDstIps().isEmpty()) {
+    //     throw new BatfishException("detected NOT dst ip");
+    //   }
 
-      if (l.getNotSrcIps() != null && !l.getNotSrcIps().isEmpty()) {
-        throw new BatfishException("detected NOT src ip");
-      }
+    //   if (l.getNotSrcIps() != null && !l.getNotSrcIps().isEmpty()) {
+    //     throw new BatfishException("detected NOT src ip");
+    //   }
 
-      if (l.getNotDstPorts() != null && !l.getNotDstPorts().isEmpty()) {
-        throw new BatfishException("detected NOT dst port");
-      }
+    //   if (l.getNotDstPorts() != null && !l.getNotDstPorts().isEmpty()) {
+    //     throw new BatfishException("detected NOT dst port");
+    //   }
 
-      if (l.getNotSrcPorts() != null && !l.getNotSrcPorts().isEmpty()) {
-        throw new BatfishException("detected NOT src port");
-      }
+    //   if (l.getNotSrcPorts() != null && !l.getNotSrcPorts().isEmpty()) {
+    //     throw new BatfishException("detected NOT src port");
+    //   }
 
-      if (l.getNotEcns() != null && !l.getNotEcns().isEmpty()) {
-        throw new BatfishException("detected NOT ecns");
-      }
+    //   if (l.getNotEcns() != null && !l.getNotEcns().isEmpty()) {
+    //     throw new BatfishException("detected NOT ecns");
+    //   }
 
-      if (l.getNotIcmpCodes() != null && !l.getNotIcmpCodes().isEmpty()) {
-        throw new BatfishException("detected NOT icmp codes");
-      }
+    //   if (l.getNotIcmpCodes() != null && !l.getNotIcmpCodes().isEmpty()) {
+    //     throw new BatfishException("detected NOT icmp codes");
+    //   }
 
-      if (l.getNotIcmpTypes() != null && !l.getNotIcmpTypes().isEmpty()) {
-        throw new BatfishException("detected NOT icmp types");
-      }
+    //   if (l.getNotIcmpTypes() != null && !l.getNotIcmpTypes().isEmpty()) {
+    //     throw new BatfishException("detected NOT icmp types");
+    //   }
 
-      if (l.getNotFragmentOffsets() != null && !l.getNotFragmentOffsets().isEmpty()) {
-        throw new BatfishException("detected NOT fragment offset");
-      }
+    //   if (l.getNotFragmentOffsets() != null && !l.getNotFragmentOffsets().isEmpty()) {
+    //     throw new BatfishException("detected NOT fragment offset");
+    //   }
 
-      if (l.getNotIpProtocols() != null && !l.getNotIpProtocols().isEmpty()) {
-        throw new BatfishException("detected NOT ip protocols");
-      }
+    //   if (l.getNotIpProtocols() != null && !l.getNotIpProtocols().isEmpty()) {
+    //     throw new BatfishException("detected NOT ip protocols");
+    //   }
 
-      if (local != null) {
-        BoolExpr ret;
-        if (l.getAction() == LineAction.ACCEPT) {
-          ret = mkTrue();
-        } else {
-          ret = mkFalse();
-        }
+    //   if (local != null) {
+    //     BoolExpr ret;
+    //     if (l.getAction() == LineAction.ACCEPT) {
+    //       ret = mkTrue();
+    //     } else {
+    //       ret = mkFalse();
+    //     }
 
-        if (l.getNegate()) {
-          local = mkNot(local);
-        }
+    //     if (l.getNegate()) {
+    //       local = mkNot(local);
+    //     }
 
-        acc = mkIf(local, ret, acc);
-      }
-    }
+    //     acc = mkIf(local, ret, acc);
+    //   }
+    // }
 
-    return acc;
+    // return acc;
   }
 
   private boolean otherSliceHasEdge(EncoderSlice slice, String r, GraphEdge ge) {
@@ -2042,8 +2055,10 @@ class EncoderSlice {
       GraphEdge ge,
       String router) {
 
+    // Symbolic route for the logical edge
     SymbolicRoute vars = e.getSymbolicRecord();
 
+    
     Interface iface = ge.getStart();
 
     ArithExpr failed = getSymbolicFailures().getFailedVariable(e.getEdge());
@@ -2594,154 +2609,155 @@ class EncoderSlice {
    * This can include restrictions on any packet field such as dstIp, protocol etc.
    */
   private void addHeaderSpaceConstraint() {
+    return;
 
-    BoolExpr acc;
+    // BoolExpr acc;
 
-    if (_headerSpace.getDstIps().size() > 0) {
-      acc = mkFalse();
-      for (IpWildcard ipWildcard : _headerSpace.getDstIps()) {
-        BoolExpr bound = ipWildCardBound(_symbolicPacket.getDstIp(), ipWildcard);
-        acc = mkOr(acc, bound);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getDstIps().size() > 0) {
+    //   acc = mkFalse();
+    //   for (IpWildcard ipWildcard : _headerSpace.getDstIps()) {
+    //     BoolExpr bound = ipWildCardBound(_symbolicPacket.getDstIp(), ipWildcard);
+    //     acc = mkOr(acc, bound);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getNotDstIps().size() > 0) {
-      acc = mkTrue();
-      for (IpWildcard ipWildcard : _headerSpace.getNotDstIps()) {
-        BoolExpr bound = ipWildCardBound(_symbolicPacket.getDstIp(), ipWildcard);
-        acc = mkAnd(acc, mkNot(bound));
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getNotDstIps().size() > 0) {
+    //   acc = mkTrue();
+    //   for (IpWildcard ipWildcard : _headerSpace.getNotDstIps()) {
+    //     BoolExpr bound = ipWildCardBound(_symbolicPacket.getDstIp(), ipWildcard);
+    //     acc = mkAnd(acc, mkNot(bound));
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getSrcIps().size() > 0) {
-      acc = mkFalse();
-      for (IpWildcard ipWildcard : _headerSpace.getSrcIps()) {
-        BoolExpr bound = ipWildCardBound(_symbolicPacket.getSrcIp(), ipWildcard);
-        acc = mkOr(acc, bound);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getSrcIps().size() > 0) {
+    //   acc = mkFalse();
+    //   for (IpWildcard ipWildcard : _headerSpace.getSrcIps()) {
+    //     BoolExpr bound = ipWildCardBound(_symbolicPacket.getSrcIp(), ipWildcard);
+    //     acc = mkOr(acc, bound);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getNotSrcIps().size() > 0) {
-      acc = mkTrue();
-      for (IpWildcard ipWildcard : _headerSpace.getNotSrcIps()) {
-        BoolExpr bound = ipWildCardBound(_symbolicPacket.getSrcIp(), ipWildcard);
-        acc = mkAnd(acc, mkNot(bound));
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getNotSrcIps().size() > 0) {
+    //   acc = mkTrue();
+    //   for (IpWildcard ipWildcard : _headerSpace.getNotSrcIps()) {
+    //     BoolExpr bound = ipWildCardBound(_symbolicPacket.getSrcIp(), ipWildcard);
+    //     acc = mkAnd(acc, mkNot(bound));
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getSrcOrDstIps().size() > 0) {
-      acc = mkFalse();
-      for (IpWildcard ipWildcard : _headerSpace.getSrcOrDstIps()) {
-        BoolExpr bound1 = ipWildCardBound(_symbolicPacket.getDstIp(), ipWildcard);
-        BoolExpr bound2 = ipWildCardBound(_symbolicPacket.getSrcIp(), ipWildcard);
-        acc = mkOr(acc, bound1, bound2);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getSrcOrDstIps().size() > 0) {
+    //   acc = mkFalse();
+    //   for (IpWildcard ipWildcard : _headerSpace.getSrcOrDstIps()) {
+    //     BoolExpr bound1 = ipWildCardBound(_symbolicPacket.getDstIp(), ipWildcard);
+    //     BoolExpr bound2 = ipWildCardBound(_symbolicPacket.getSrcIp(), ipWildcard);
+    //     acc = mkOr(acc, bound1, bound2);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getDstPorts().size() > 0) {
-      acc = mkFalse();
-      for (SubRange subRange : _headerSpace.getDstPorts()) {
-        BoolExpr bound = subRangeBound(_symbolicPacket.getDstPort(), subRange);
-        acc = mkOr(acc, bound);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getDstPorts().size() > 0) {
+    //   acc = mkFalse();
+    //   for (SubRange subRange : _headerSpace.getDstPorts()) {
+    //     BoolExpr bound = subRangeBound(_symbolicPacket.getDstPort(), subRange);
+    //     acc = mkOr(acc, bound);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getNotDstPorts().size() > 0) {
-      acc = mkTrue();
-      for (SubRange subRange : _headerSpace.getNotDstPorts()) {
-        BoolExpr bound = subRangeBound(_symbolicPacket.getDstPort(), subRange);
-        acc = mkAnd(acc, mkNot(bound));
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getNotDstPorts().size() > 0) {
+    //   acc = mkTrue();
+    //   for (SubRange subRange : _headerSpace.getNotDstPorts()) {
+    //     BoolExpr bound = subRangeBound(_symbolicPacket.getDstPort(), subRange);
+    //     acc = mkAnd(acc, mkNot(bound));
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getSrcPorts().size() > 0) {
-      acc = mkFalse();
-      for (SubRange subRange : _headerSpace.getSrcPorts()) {
-        BoolExpr bound = subRangeBound(_symbolicPacket.getDstPort(), subRange);
-        acc = mkOr(acc, bound);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getSrcPorts().size() > 0) {
+    //   acc = mkFalse();
+    //   for (SubRange subRange : _headerSpace.getSrcPorts()) {
+    //     BoolExpr bound = subRangeBound(_symbolicPacket.getDstPort(), subRange);
+    //     acc = mkOr(acc, bound);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getNotSrcPorts().size() > 0) {
-      acc = mkTrue();
-      for (SubRange subRange : _headerSpace.getNotSrcPorts()) {
-        BoolExpr bound = subRangeBound(_symbolicPacket.getDstPort(), subRange);
-        acc = mkAnd(acc, mkNot(bound));
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getNotSrcPorts().size() > 0) {
+    //   acc = mkTrue();
+    //   for (SubRange subRange : _headerSpace.getNotSrcPorts()) {
+    //     BoolExpr bound = subRangeBound(_symbolicPacket.getDstPort(), subRange);
+    //     acc = mkAnd(acc, mkNot(bound));
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getSrcOrDstPorts().size() > 0) {
-      acc = mkFalse();
-      for (SubRange subRange : _headerSpace.getSrcOrDstPorts()) {
-        BoolExpr bound1 = subRangeBound(_symbolicPacket.getDstPort(), subRange);
-        BoolExpr bound2 = subRangeBound(_symbolicPacket.getSrcPort(), subRange);
-        acc = mkOr(acc, bound1, bound2);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getSrcOrDstPorts().size() > 0) {
+    //   acc = mkFalse();
+    //   for (SubRange subRange : _headerSpace.getSrcOrDstPorts()) {
+    //     BoolExpr bound1 = subRangeBound(_symbolicPacket.getDstPort(), subRange);
+    //     BoolExpr bound2 = subRangeBound(_symbolicPacket.getSrcPort(), subRange);
+    //     acc = mkOr(acc, bound1, bound2);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getIcmpTypes().size() > 0) {
-      acc = mkFalse();
-      for (SubRange subRange : _headerSpace.getIcmpTypes()) {
-        BoolExpr bound = subRangeBound(_symbolicPacket.getIcmpType(), subRange);
-        acc = mkOr(acc, bound);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getIcmpTypes().size() > 0) {
+    //   acc = mkFalse();
+    //   for (SubRange subRange : _headerSpace.getIcmpTypes()) {
+    //     BoolExpr bound = subRangeBound(_symbolicPacket.getIcmpType(), subRange);
+    //     acc = mkOr(acc, bound);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getNotIcmpTypes().size() > 0) {
-      acc = mkTrue();
-      for (SubRange subRange : _headerSpace.getNotIcmpTypes()) {
-        BoolExpr bound = subRangeBound(_symbolicPacket.getIcmpType(), subRange);
-        acc = mkAnd(acc, mkNot(bound));
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getNotIcmpTypes().size() > 0) {
+    //   acc = mkTrue();
+    //   for (SubRange subRange : _headerSpace.getNotIcmpTypes()) {
+    //     BoolExpr bound = subRangeBound(_symbolicPacket.getIcmpType(), subRange);
+    //     acc = mkAnd(acc, mkNot(bound));
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getIcmpCodes().size() > 0) {
-      acc = mkFalse();
-      for (SubRange subRange : _headerSpace.getIcmpCodes()) {
-        BoolExpr bound = subRangeBound(_symbolicPacket.getIcmpCode(), subRange);
-        acc = mkOr(acc, bound);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getIcmpCodes().size() > 0) {
+    //   acc = mkFalse();
+    //   for (SubRange subRange : _headerSpace.getIcmpCodes()) {
+    //     BoolExpr bound = subRangeBound(_symbolicPacket.getIcmpCode(), subRange);
+    //     acc = mkOr(acc, bound);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getNotIcmpCodes().size() > 0) {
-      acc = mkTrue();
-      for (SubRange subRange : _headerSpace.getNotIcmpCodes()) {
-        BoolExpr bound = subRangeBound(_symbolicPacket.getIcmpCode(), subRange);
-        acc = mkAnd(acc, mkNot(bound));
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getNotIcmpCodes().size() > 0) {
+    //   acc = mkTrue();
+    //   for (SubRange subRange : _headerSpace.getNotIcmpCodes()) {
+    //     BoolExpr bound = subRangeBound(_symbolicPacket.getIcmpCode(), subRange);
+    //     acc = mkAnd(acc, mkNot(bound));
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getIpProtocols().size() > 0) {
-      acc = mkFalse();
-      for (IpProtocol ipProtocol : _headerSpace.getIpProtocols()) {
-        BoolExpr bound = mkEq(_symbolicPacket.getIpProtocol(), mkInt(ipProtocol.number()));
-        acc = mkOr(acc, bound);
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getIpProtocols().size() > 0) {
+    //   acc = mkFalse();
+    //   for (IpProtocol ipProtocol : _headerSpace.getIpProtocols()) {
+    //     BoolExpr bound = mkEq(_symbolicPacket.getIpProtocol(), mkInt(ipProtocol.number()));
+    //     acc = mkOr(acc, bound);
+    //   }
+    //   add(acc);
+    // }
 
-    if (_headerSpace.getNotIpProtocols().size() > 0) {
-      acc = mkTrue();
-      for (IpProtocol ipProtocol : _headerSpace.getNotIpProtocols()) {
-        BoolExpr bound = mkEq(_symbolicPacket.getIpProtocol(), mkInt(ipProtocol.number()));
-        acc = mkAnd(acc, mkNot(bound));
-      }
-      add(acc);
-    }
+    // if (_headerSpace.getNotIpProtocols().size() > 0) {
+    //   acc = mkTrue();
+    //   for (IpProtocol ipProtocol : _headerSpace.getNotIpProtocols()) {
+    //     BoolExpr bound = mkEq(_symbolicPacket.getIpProtocol(), mkInt(ipProtocol.number()));
+    //     acc = mkAnd(acc, mkNot(bound));
+    //   }
+    //   add(acc);
+    // }
 
     // TODO: need to implement fragment offsets, Ecns, states, etc
   }
@@ -2767,6 +2783,7 @@ class EncoderSlice {
    * relevant constraints.
    */
   void computeEncoding() {
+    System.out.println("Computing Encoding again?");
     addBoundConstraints();
     addCommunityConstraints();
     addTransferFunction();
@@ -2781,6 +2798,12 @@ class EncoderSlice {
     if (isMainSlice()) {
       addEnvironmentConstraints();
     }
+
+    try {
+      BufferedWriter writer = new BufferedWriter(new FileWriter(".wilco.smt"));
+      writer.write(getSolver().toString());
+      writer.close();
+    } catch (IOException e) {}
   }
 
   /*
